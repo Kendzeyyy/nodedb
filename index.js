@@ -3,19 +3,9 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const express = require('express');
 const app = express();
+app.enable('trust proxy');
 const Schema = mongoose.Schema;
 const fs = require('fs');
-
-//const cates = require('./schemas/cat');
-const CatInfo = new Schema({
-    name: String,
-    cat_age: Number,
-    gender: String,
-    color: String,
-    weight: Number
-});
-
-const Cates = mongoose.model('Cates', CatInfo);
 
 console.log(process.env);
 
@@ -27,6 +17,16 @@ mongoose.connect(`mongodb://${process.env.DB_USER}:${process.env.DB_PWD}@${proce
     console.log('Connection to db failed: ' + err);
 });
 
+app.use ((req, res, next) => {
+    if (req.secure) {
+        // request was via https, so do no special handling
+        next();
+    } else {
+        // request was via http, so redirect to https
+        res.redirect('https://' + req.headers.host + req.url);
+    }
+});
+
 app.get('/', (req, res) => {
     Cates.create({ test: 'Hello', more: 7}).then(post => {
         console.log(post.id);
@@ -34,43 +34,39 @@ app.get('/', (req, res) => {
     })
 });
 
+// get all cats
 app.get('/all', (req, res) => {
-   Cates.find().then(all => {
-      console.log(all);
-      res.send(all);
-   });
+    catController.cat_list_get().then((result) => {
+        res.send(result);
+    });
 });
 
-app.post('/add', function (req, res, next) {
-   const cat = {
-       cat_name: req.body.cat_name,
-       cat_age: req.body.cat_age,
-       gender: req.body.gender,
-       color: req.body.color,
-       weight: req.body.weight
-   };
+app.post('/new', bodyParser.urlencoded({extended: true}), (req, res) => {
+    const data = req.body;
+    console.log(data);
+    catController.cat_create_post(data).then((result) => {
+        res.send(result);
+    });
+});
 
-    fs.writeFile('data.json', JSON.stringify(myJson), "utf8", Cates);
-    myJson = require ('public/data.json');
+app.get('/number', (req, res) => {
+    catController.cat_number_get().then((result) => {
+        res.send(`Got ${result} cats`);
+    });
+});
 
-   /*
-   dbase.collection("name").save(name, function(err, result){
-       if(err){
-           console.log(err);
-       }
-    res.send('name added successfully');
-   });
-   */
-    res.sendStatus(200);
+app.get('/sort', (req, res) => {
+    catController.cat_sort_get().then((result) => {
+        let text = '';
+        result.forEach((cat) => {
+            text += cat.name + '<br>';
+        });
+        res.send(text);
+    });
 });
 
 app.get('/name', function (req, res){
-   dbase.collection('name').find().toArray(function (err, results) {
-       res.send(results);
-   })
+    dbase.collection('name').find().toArray(function (err, results) {
+        res.send(results);
+    })
 });
-
-Cates.create({hidden: false}).then(post => {
-   console.log('create ' + post.id);
-});
-
