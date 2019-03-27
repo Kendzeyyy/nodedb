@@ -3,9 +3,14 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const express = require('express');
 const app = express();
-app.enable('trust proxy');
 const Schema = mongoose.Schema;
-const fs = require('fs');
+app.enable('trust proxy');
+
+const bodyParser = require('body-parser');
+app.use(bodyParser.urlencoded({extended: true}));
+
+const passport = require('passport');
+const LocalStrategy = require('passport-local').Strategy;
 
 console.log(process.env);
 
@@ -17,6 +22,17 @@ mongoose.connect(`mongodb://${process.env.DB_USER}:${process.env.DB_PWD}@${proce
     console.log('Connection to db failed: ' + err);
 });
 
+passport.use(new LocalStrategy(
+    (username, password, done) => {
+        if (username !== process.env.username || password !== process.env.password) {
+            done(null, false, {message: 'Incorrect credentials.'});
+            return;
+        }
+        return done(null, {user: username}); // returned object usally contains something to identify the user
+    }
+));
+app.use(passport.initialize());
+
 app.use ((req, res, next) => {
     if (req.secure) {
         // request was via https, so do no special handling
@@ -25,6 +41,17 @@ app.use ((req, res, next) => {
         // request was via http, so redirect to https
         res.redirect('https://' + req.headers.host + req.url);
     }
+});
+
+app.post('/login',
+    passport.authenticate('local', {
+        successRedirect: '/all',
+        failureRedirect: '/test',
+        session: false })
+);
+
+app.get('/test', function (req, res) {
+    res.send('login fail');
 });
 
 app.get('/', (req, res) => {
